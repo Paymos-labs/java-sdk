@@ -12,16 +12,14 @@ public final class PaymosApiException extends PaymosException {
   private static final ObjectMapper JSON = JsonSupport.MAPPER;
   private final int statusCode;
   private final String body;
-  private final HttpHeaders headers;
-  private final JsonNode problem;
+  private final String retryAfterHeader;
 
   /** Creates an API exception while preserving the response for diagnostics. */
   public PaymosApiException(int statusCode, String body, HttpHeaders headers) {
     super(message(statusCode, body));
     this.statusCode = statusCode;
     this.body = body;
-    this.headers = headers;
-    this.problem = parse(body);
+    this.retryAfterHeader = headers.firstValue("Retry-After").orElse(null);
   }
 
   /** Returns the HTTP status code. */
@@ -36,11 +34,12 @@ public final class PaymosApiException extends PaymosException {
 
   /** Returns parsed RFC 9457-style problem details, or an empty object. */
   public JsonNode problem() {
-    return problem;
+    return parse(body);
   }
 
   /** Returns the first stable Paymos error code when available. */
   public String code() {
+    JsonNode problem = problem();
     JsonNode errors = problem.path("errors");
     return errors.isArray() && !errors.isEmpty()
         ? errors.get(0).path("code").asText("")
@@ -49,6 +48,7 @@ public final class PaymosApiException extends PaymosException {
 
   /** Returns the field associated with the first validation error. */
   public String field() {
+    JsonNode problem = problem();
     JsonNode errors = problem.path("errors");
     JsonNode field =
         errors.isArray() && !errors.isEmpty() ? errors.get(0).path("field") : problem.path("field");
@@ -71,16 +71,12 @@ public final class PaymosApiException extends PaymosException {
 
   /** Returns a numeric Retry-After delay when the response supplied one. */
   public Optional<Duration> retryAfter() {
-    return headers
-        .firstValue("Retry-After")
-        .flatMap(
-            value -> {
-              try {
-                return Optional.of(Duration.ofSeconds(Long.parseLong(value)));
-              } catch (NumberFormatException ignored) {
-                return Optional.empty();
-              }
-            });
+    if (retryAfterHeader == null) return Optional.empty();
+    try {
+      return Optional.of(Duration.ofSeconds(Long.parseLong(retryAfterHeader)));
+    } catch (NumberFormatException ignored) {
+      return Optional.empty();
+    }
   }
 
   private static JsonNode parse(String body) {
