@@ -3,6 +3,7 @@ package io.paymos;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.fasterxml.jackson.databind.*;
+import java.net.http.HttpHeaders;
 import java.nio.file.*;
 import java.time.*;
 import java.util.*;
@@ -57,6 +58,18 @@ final class ConformanceTest {
     assertFalse(
         verifier.verify(
             text(webhook, "header") + ",t=" + webhook.path("timestamp").asLong(), body, now));
+  }
+
+  @Test
+  void problemDetailsUsesTopLevelCode() throws Exception {
+    JsonNode vector = contract().path("vectors").path("problem_details").path("multi");
+    PaymosApiException error =
+        new PaymosApiException(
+            400, JSON.writeValueAsString(vector), HttpHeaders.of(Map.of(), (a, b) -> true));
+
+    assertEquals("validation_failed", error.code());
+    assertNull(error.field());
+    assertEquals("field_required", error.errors().get(0).code());
   }
 
   @Test
