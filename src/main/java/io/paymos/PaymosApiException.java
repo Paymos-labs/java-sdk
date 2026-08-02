@@ -2,6 +2,7 @@ package io.paymos;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.net.http.HttpHeaders;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -18,14 +19,14 @@ public final class PaymosApiException extends PaymosException {
   private final int statusCode;
   private final String body;
   private final String retryAfterHeader;
-  private final JsonNode problem;
+  private final ObjectNode problem;
 
   /** Creates an API exception while preserving the response for diagnostics. */
   public PaymosApiException(int statusCode, String body, HttpHeaders headers) {
     this(statusCode, body, headers, parseProblem(statusCode, body));
   }
 
-  private PaymosApiException(int statusCode, String body, HttpHeaders headers, JsonNode problem) {
+  private PaymosApiException(int statusCode, String body, HttpHeaders headers, ObjectNode problem) {
     super(message(statusCode, body, problem));
     this.statusCode = statusCode;
     this.body = body;
@@ -123,7 +124,7 @@ public final class PaymosApiException extends PaymosException {
     }
   }
 
-  private static JsonNode parseProblem(int status, String body) {
+  private static ObjectNode parseProblem(int status, String body) {
     JsonNode value = parse(body);
     return value.isObject()
             && value.path("type").isTextual()
@@ -132,7 +133,7 @@ public final class PaymosApiException extends PaymosException {
             && value.path("status").asInt() == status
             && value.path("detail").isTextual()
             && value.path("code").isTextual()
-        ? value
+        ? (ObjectNode) value
         : JSON.createObjectNode();
   }
 

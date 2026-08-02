@@ -6,7 +6,7 @@
 
   <groupId>io.paymos</groupId>
   <artifactId>paymos-java</artifactId>
-  <version>1.1.0</version>
+  <version>1.1.1</version>
   <name>Paymos Java SDK</name>
   <description>Official Java SDK for the Paymos Merchant API</description>
   <url>https://paymos.io/docs/server-sdks</url>
