@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-08-02
+
+- fix(release): avoid false Central timeout [skip ecosystem release]
+
 ## [1.1.1] - 2026-08-02
 
 - fix(java-sdk): support Java 21 serial lint
