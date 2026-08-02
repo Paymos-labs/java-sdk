@@ -4,22 +4,33 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.http.HttpHeaders;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 /** A non-success HTTP response returned by the Paymos Merchant API. */
 public final class PaymosApiException extends PaymosException {
+  /** One field-level entry from the optional Problem Details errors array. */
+  public record ProblemError(String code, String field, String message) {}
+
   private static final long serialVersionUID = 1L;
   private static final ObjectMapper JSON = JsonSupport.MAPPER;
   private final int statusCode;
   private final String body;
   private final String retryAfterHeader;
+  private final JsonNode problem;
 
   /** Creates an API exception while preserving the response for diagnostics. */
   public PaymosApiException(int statusCode, String body, HttpHeaders headers) {
-    super(message(statusCode, body));
+    this(statusCode, body, headers, parseProblem(statusCode, body));
+  }
+
+  private PaymosApiException(int statusCode, String body, HttpHeaders headers, JsonNode problem) {
+    super(message(statusCode, body, problem));
     this.statusCode = statusCode;
     this.body = body;
     this.retryAfterHeader = headers.firstValue("Retry-After").orElse(null);
+    this.problem = problem;
   }
 
   /** Returns the HTTP status code. */
@@ -34,25 +45,50 @@ public final class PaymosApiException extends PaymosException {
 
   /** Returns parsed RFC 9457-style problem details, or an empty object. */
   public JsonNode problem() {
-    return parse(body);
+    return problem;
   }
 
-  /** Returns the first stable Paymos error code when available. */
+  /** Returns the authoritative top-level Paymos error code when available. */
   public String code() {
-    JsonNode problem = problem();
-    JsonNode errors = problem.path("errors");
-    return errors.isArray() && !errors.isEmpty()
-        ? errors.get(0).path("code").asText("")
-        : problem.path("code").asText("");
+    return problem.path("code").asText("");
   }
 
-  /** Returns the field associated with the first validation error. */
+  /** Returns the request-level top-level field, when supplied. */
   public String field() {
-    JsonNode problem = problem();
-    JsonNode errors = problem.path("errors");
-    JsonNode field =
-        errors.isArray() && !errors.isEmpty() ? errors.get(0).path("field") : problem.path("field");
+    JsonNode field = problem.path("field");
     return field.isTextual() ? field.asText() : null;
+  }
+
+  public String type() {
+    return problem.path("type").asText("");
+  }
+
+  public String title() {
+    return problem.path("title").asText("");
+  }
+
+  public Integer problemStatus() {
+    return problem.path("status").isInt() ? problem.path("status").asInt() : null;
+  }
+
+  public String detail() {
+    return problem.path("detail").asText("");
+  }
+
+  public List<ProblemError> errors() {
+    JsonNode values = problem.path("errors");
+    if (!values.isArray()) return List.of();
+    List<ProblemError> result = new ArrayList<>();
+    for (JsonNode value : values) {
+      if (!value.path("code").isTextual() || !value.path("message").isTextual()) continue;
+      JsonNode field = value.path("field");
+      result.add(
+          new ProblemError(
+              value.path("code").asText(),
+              field.isTextual() ? field.asText() : null,
+              value.path("message").asText()));
+    }
+    return List.copyOf(result);
   }
 
   /** Classifies the status using the cross-language SDK error contract. */
@@ -87,8 +123,20 @@ public final class PaymosApiException extends PaymosException {
     }
   }
 
-  private static String message(int status, String body) {
+  private static JsonNode parseProblem(int status, String body) {
     JsonNode value = parse(body);
+    return value.isObject()
+            && value.path("type").isTextual()
+            && value.path("title").isTextual()
+            && value.path("status").isInt()
+            && value.path("status").asInt() == status
+            && value.path("detail").isTextual()
+            && value.path("code").isTextual()
+        ? value
+        : JSON.createObjectNode();
+  }
+
+  private static String message(int status, String body, JsonNode value) {
     String detail = value.path("detail").asText("");
     if (detail.isEmpty()) detail = value.path("code").asText("");
     if (detail.isEmpty()) detail = body.isEmpty() ? "empty response" : body;
