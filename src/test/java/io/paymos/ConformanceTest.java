@@ -3,6 +3,7 @@ package io.paymos;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.fasterxml.jackson.databind.*;
+import java.io.*;
 import java.net.http.HttpHeaders;
 import java.nio.file.*;
 import java.time.*;
@@ -70,6 +71,29 @@ final class ConformanceTest {
     assertEquals("validation_failed", error.code());
     assertNull(error.field());
     assertEquals("field_required", error.errors().get(0).code());
+  }
+
+  @Test
+  void apiExceptionCanBeSerialized() throws Exception {
+    PaymosApiException error =
+        new PaymosApiException(
+            400,
+            "{\"type\":\"about:blank\",\"title\":\"Bad Request\",\"status\":400,\"detail\":\"Invalid.\",\"code\":\"validation_failed\"}",
+            HttpHeaders.of(Map.of(), (a, b) -> true));
+
+    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+    try (ObjectOutputStream output = new ObjectOutputStream(bytes)) {
+      output.writeObject(error);
+    }
+
+    PaymosApiException restored;
+    try (ObjectInputStream input =
+        new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
+      restored = (PaymosApiException) input.readObject();
+    }
+    assertEquals(400, restored.statusCode());
+    assertEquals("validation_failed", restored.code());
+    assertTrue(restored.problem().isObject());
   }
 
   @Test

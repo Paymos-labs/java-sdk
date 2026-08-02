@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-08-02
+
+- fix(java-sdk): support Java 21 serial lint
+
 ## [1.1.0] - 2026-08-02
 
 - fix(ecosystem): recover SDK releases
