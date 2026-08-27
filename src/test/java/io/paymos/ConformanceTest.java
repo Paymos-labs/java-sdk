@@ -32,6 +32,19 @@ final class ConformanceTest {
             text(post, "query"),
             text(post, "body")));
     assertEquals("a%20b%2F%2A~", RequestSigner.encodePathSegment("a b/*~"));
+    // An absent body signs an EMPTY last segment, never sha256(""). This vector is a POST, so an
+    // SDK that shortcuts on the method ("only GET is empty") fails here.
+    JsonNode empty = vectors.path("post_empty_body_signing");
+    assertEquals(
+        empty.path("authorization").asText(),
+        RequestSigner.authorizationHeader(
+            text(empty, "api_key"),
+            text(empty, "api_secret"),
+            text(empty, "timestamp"),
+            text(empty, "method"),
+            text(empty, "path"),
+            text(empty, "query"),
+            text(empty, "body")));
     JsonNode get = vectors.path("get_query_signing");
     assertEquals(
         text(get, "query"),
@@ -111,8 +124,15 @@ final class ConformanceTest {
           if (path.equals("/v1/time")) response = "{\"server_time\":1700000000}";
           else if (path.equals("/v1/balances")) response = "[]";
           else if (method.equals("GET")
-              && (path.equals("/v1/invoices") || path.equals("/v1/withdrawals")))
+              && (path.equals("/v1/invoices")
+                  || path.equals("/v1/withdrawals")
+                  || path.equals("/v1/payment-channels")))
             response = "{\"items\":[],\"next_cursor\":null}";
+          else if (method.equals("GET") && path.equals("/v1/payment-channel-deposits"))
+            response = "{\"items\":[],\"next_cursor\":\"cur_1\"}";
+          else if (path.startsWith("/v1/payment-channel-deposits/")
+              || path.endsWith("/simulate-deposit")) response = PaymentChannelTest.depositJson();
+          else if (path.contains("payment-channel")) response = PaymentChannelTest.channelJson();
           else if (path.contains("invoice")) response = invoiceJson();
           else response = withdrawalJson();
           return new PaymosClient.Response(200, response, Map.of());
@@ -139,6 +159,15 @@ final class ConformanceTest {
     client.withdrawals.list(WithdrawalListOptions.builder().limit(1).build());
     client.withdrawals.cancel("wdr_1", "reason");
     client.withdrawals.simulateCompletion("wdr_1");
+    client.paymentChannels.create(new CreatePaymentChannelRequest("prj_1", "customer-42"));
+    client.paymentChannels.get("pc_1");
+    client.paymentChannels.list(PaymentChannelListOptions.builder().limit(1).build());
+    client.paymentChannels.block("pc_1");
+    client.paymentChannels.unblock("pc_1");
+    client.paymentChannels.simulateDeposit(
+        "pc_1", new SimulateDepositRequest("100.00", "USDT", "TRC20"));
+    client.paymentChannelDeposits.read(PaymentChannelDepositFeedOptions.builder().limit(1).build());
+    client.paymentChannelDeposits.get("pcd_1");
     client.balances.get();
     List<String> expected =
         List.of(
@@ -154,6 +183,14 @@ final class ConformanceTest {
             "GET /v1/withdrawals?limit=1",
             "POST /v1/withdrawals/wdr_1/cancel",
             "POST /v1/sandbox/withdrawals/wdr_1/simulate-completion",
+            "POST /v1/payment-channels",
+            "GET /v1/payment-channels/pc_1",
+            "GET /v1/payment-channels?limit=1",
+            "POST /v1/payment-channels/pc_1/block",
+            "POST /v1/payment-channels/pc_1/unblock",
+            "POST /v1/sandbox/payment-channels/pc_1/simulate-deposit",
+            "GET /v1/payment-channel-deposits?limit=1",
+            "GET /v1/payment-channel-deposits/pcd_1",
             "GET /v1/balances");
     assertEquals(expected, calls);
   }

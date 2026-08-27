@@ -97,6 +97,14 @@ public final class RequestSigner {
     return buildQuery(options == null ? Map.of() : options.query());
   }
 
+  static String buildQuery(PaymentChannelListOptions options) {
+    return buildQuery(options == null ? Map.of() : options.query());
+  }
+
+  static String buildQuery(PaymentChannelDepositFeedOptions options) {
+    return buildQuery(options == null ? Map.of() : options.query());
+  }
+
   private static String queryValue(String key, Object value) {
     if (!supportedQueryValue(value))
       throw new IllegalArgumentException("Unsupported Paymos list filter: " + key);

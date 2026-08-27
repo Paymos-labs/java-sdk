@@ -56,6 +56,12 @@ public final class PaymosClient {
   /** Withdrawal operations. */
   public final Withdrawals withdrawals;
 
+  /** Payment channel operations. */
+  public final PaymentChannels paymentChannels;
+
+  /** Payment channel deposit feed operations. */
+  public final PaymentChannelDeposits paymentChannelDeposits;
+
   /** Balance operations. */
   public final Balances balances;
 
@@ -112,6 +118,8 @@ public final class PaymosClient {
     this.timeout = timeout;
     invoices = new Invoices();
     withdrawals = new Withdrawals();
+    paymentChannels = new PaymentChannels();
+    paymentChannelDeposits = new PaymentChannelDeposits();
     balances = new Balances();
     system = new SystemResource();
   }
@@ -378,6 +386,137 @@ public final class PaymosClient {
           "",
           null,
           type(Withdrawal.class));
+    }
+  }
+
+  /** Payment channel resource operations. */
+  public final class PaymentChannels {
+    /**
+     * Creates a payment channel, or returns the one that already exists.
+     *
+     * <p>The project and external id together are the idempotency key: a repeat answers 200 with
+     * the existing channel instead of 201 with a duplicate. Both are a channel, so a caller never
+     * inspects the status code.
+     */
+    public PaymentChannel create(CreatePaymentChannelRequest payload) {
+      return request(
+          "POST",
+          "/v1/payment-channels",
+          "",
+          Objects.requireNonNull(payload),
+          type(PaymentChannel.class));
+    }
+
+    /** Gets a payment channel by ID. */
+    public PaymentChannel get(String id) {
+      id(id);
+      return request(
+          "GET",
+          "/v1/payment-channels/" + RequestSigner.encodePathSegment(id),
+          "",
+          null,
+          type(PaymentChannel.class));
+    }
+
+    /** Lists one cursor page of payment channels without filters. */
+    public Page<PaymentChannel> list() {
+      return list(PaymentChannelListOptions.empty());
+    }
+
+    /** Lists one cursor page of payment channels. */
+    public Page<PaymentChannel> list(PaymentChannelListOptions options) {
+      JavaType pageType =
+          JSON.getTypeFactory().constructParametricType(Page.class, PaymentChannel.class);
+      return request(
+          "GET", "/v1/payment-channels", RequestSigner.buildQuery(options), null, pageType);
+    }
+
+    /**
+     * Iterates payment channels with a strict maximum-page bound.
+     *
+     * <p>This list is an ordinary keyset page whose cursor is null on the last page, so the
+     * iteration terminates. The deposit feed is not like this and has no iterator.
+     */
+    public Iterable<PaymentChannel> iterate(PaymentChannelListOptions options, int maxPages) {
+      PaymentChannelListOptions initial =
+          options == null ? PaymentChannelListOptions.empty() : options;
+      return cursor(
+          this::list,
+          initial,
+          PaymentChannelListOptions::cursor,
+          PaymentChannelListOptions::withCursor,
+          maxPages);
+    }
+
+    /** Stops a channel accepting payments and returns the updated channel. */
+    public PaymentChannel block(String id) {
+      id(id);
+      return request(
+          "POST",
+          "/v1/payment-channels/" + RequestSigner.encodePathSegment(id) + "/block",
+          "",
+          null,
+          type(PaymentChannel.class));
+    }
+
+    /** Lets a channel accept payments again and returns the updated channel. */
+    public PaymentChannel unblock(String id) {
+      id(id);
+      return request(
+          "POST",
+          "/v1/payment-channels/" + RequestSigner.encodePathSegment(id) + "/unblock",
+          "",
+          null,
+          type(PaymentChannel.class));
+    }
+
+    /** Simulates a sandbox deposit into a payment channel. Sandbox credentials only. */
+    public PaymentChannelDeposit simulateDeposit(String id, SimulateDepositRequest payload) {
+      id(id);
+      return request(
+          "POST",
+          "/v1/sandbox/payment-channels/"
+              + RequestSigner.encodePathSegment(id)
+              + "/simulate-deposit",
+          "",
+          Objects.requireNonNull(payload),
+          type(PaymentChannelDeposit.class));
+    }
+  }
+
+  /** Payment channel deposit resource operations. */
+  public final class PaymentChannelDeposits {
+    /** Gets a payment channel deposit by ID. */
+    public PaymentChannelDeposit get(String id) {
+      id(id);
+      return request(
+          "GET",
+          "/v1/payment-channel-deposits/" + RequestSigner.encodePathSegment(id),
+          "",
+          null,
+          type(PaymentChannelDeposit.class));
+    }
+
+    /** Reads one page of the confirmed-deposit feed without filters. */
+    public PaymentChannelDepositFeedPage read() {
+      return read(PaymentChannelDepositFeedOptions.empty());
+    }
+
+    /**
+     * Reads ONE page of the confirmed-deposit feed.
+     *
+     * <p>Called read rather than list, and deliberately without an iterator: the feed has no end,
+     * and a helper that looped until the cursor emptied would either never stop or, worse, stop on
+     * the first quiet page and leave a merchant's reconciliation silently behind. Store {@link
+     * PaymentChannelDepositFeedPage#nextCursor()} after every poll and resume from it.
+     */
+    public PaymentChannelDepositFeedPage read(PaymentChannelDepositFeedOptions options) {
+      return request(
+          "GET",
+          "/v1/payment-channel-deposits",
+          RequestSigner.buildQuery(options),
+          null,
+          type(PaymentChannelDepositFeedPage.class));
     }
   }
 
