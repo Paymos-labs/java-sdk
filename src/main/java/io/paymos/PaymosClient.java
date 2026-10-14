@@ -81,6 +81,26 @@ public final class PaymosClient {
         Duration.ofSeconds(30));
   }
 
+  /**
+   * Creates a client against a non-default API origin, keeping every other default.
+   *
+   * <p>Without this overload the only constructor that accepts a base URL also demands a {@link
+   * Transport}, a {@link Clock} and the full retry/timeout set — and the default transport is
+   * private, so pointing the SDK at a sandbox, a staging host or a corporate proxy meant
+   * reimplementing HTTP by hand. Every other Paymos SDK exposes the base URL as one option.
+   */
+  public PaymosClient(String apiKey, String apiSecret, String baseUrl) {
+    this(
+        apiKey,
+        apiSecret,
+        baseUrl,
+        defaultTransport(),
+        Clock.systemUTC(),
+        2,
+        Duration.ofMillis(150),
+        Duration.ofSeconds(30));
+  }
+
   /** Creates a client with explicit transport, clock, retry, and timeout options. */
   public PaymosClient(
       String apiKey,
@@ -101,6 +121,16 @@ public final class PaymosClient {
         || parsedBase.getRawFragment() != null
         || !(parsedBase.getRawPath().isEmpty() || parsedBase.getRawPath().equals("/")))
       throw new IllegalArgumentException("Base URL must be an absolute origin without a path");
+    String scheme =
+        parsedBase.getScheme() == null ? "" : parsedBase.getScheme().toLowerCase(Locale.ROOT);
+    String host = parsedBase.getHost().toLowerCase(Locale.ROOT);
+    boolean loopback = host.equals("localhost") || host.equals("127.0.0.1") || host.equals("[::1]");
+    // The API secret signs every request, so this scheme decides whether that credential is
+    // readable in transit. HTTPS in production; plain HTTP only against a loopback host, which is
+    // what a local integration test points at. Mirrors the Rust SDK's validate_base_url.
+    if (!scheme.equals("https") && !(scheme.equals("http") && loopback))
+      throw new IllegalArgumentException(
+          "Base URL must use HTTPS (HTTP is allowed only for loopback tests)");
     if (maxRetries < 0 || maxRetries > 10)
       throw new IllegalArgumentException("maxRetries must be between 0 and 10");
     if (baseDelay == null || baseDelay.isNegative())
@@ -312,7 +342,7 @@ public final class PaymosClient {
     /** Simulates a sandbox invoice payment stage. */
     public Invoice simulatePayment(String id, String stage) {
       id(id);
-      if (!Set.of("paid", "overpaid", "underpay", "cancel").contains(stage))
+      if (!Set.of("paid", "overpaid", "underpay", "cancel", "paid_late").contains(stage))
         throw new IllegalArgumentException("Invalid stage");
       return request(
           "POST",

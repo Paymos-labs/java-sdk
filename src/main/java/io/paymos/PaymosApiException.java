@@ -96,7 +96,13 @@ public final class PaymosApiException extends PaymosException {
   public String kind() {
     return switch (statusCode) {
       case 400 -> "validation";
-      case 401, 403 -> "authentication";
+      case 401 -> "authentication";
+      // 403 is its own category: the credential was accepted and something else refused. It
+      // carries wrong-key-type (payout_key_required, payment_key_required, forbidden) next to plain
+      // business state (whitelist_required, merchant_suspended, widget_inactive). Reporting an
+      // unwhitelisted payout address as "authentication" sends the on-call engineer to rotate
+      // perfectly good credentials. Switch on code() for the specific remedy.
+      case 403 -> "permission";
       case 404 -> "not_found";
       case 409 -> "conflict";
       case 410 -> "gone";
