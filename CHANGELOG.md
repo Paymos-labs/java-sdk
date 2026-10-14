@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-14
+
+- Make the SDK CI tier green
+- Verify invoice-late-payment audit fixes on the shared node
+- Fix invoice-late-payment audit findings (tasks 4.1-4.8)
+- feat(invoices): accept full late payments without reopening invoices
+- fix(sdk-conformance): восемь копий контракта разошлись с каноном — 403 снова permission
+- fix(sdk): HTTPS обязателен, а 403 перестал притворяться ошибкой ключа
+
+- **403 is no longer reported as an authentication failure.** `PaymosApiException.kind()` returns `"permission"` for 403; 401 keeps `"authentication"`.
+- **Base URL must use HTTPS.** Plain HTTP is accepted only against a loopback host, which is what a local integration test points at. The API secret signs every request, so a plaintext base URL put that credential on the wire.
+- **`new PaymosClient(apiKey, apiSecret, baseUrl)`** — pointing the SDK at a non-default origin no longer requires supplying a `Transport`, a `Clock` and the full retry/timeout set. The default transport is used.
+
 ## [1.2.0] - 2026-08-27
 
 - release: the changelog rot had a cause, and it was not the one I named

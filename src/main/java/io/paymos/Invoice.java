@@ -3,7 +3,14 @@ package io.paymos;
 import java.util.List;
 import java.util.Objects;
 
-/** Full invoice returned by create, get, and mutation operations. */
+/**
+ * Full invoice returned by create, get, and mutation operations.
+ *
+ * <p>{@code paidLateAt} is the invoice-late-payment fact: money crossed the invoice's total after
+ * it had already closed as expired/underpaid. Unix seconds; null while the invoice has no late mark
+ * — the server omits the field then and Jackson leaves the null. {@code status} keeps its terminal
+ * meaning; the marker travels beside it.
+ */
 public record Invoice(
     String invoiceId,
     String projectId,
@@ -16,7 +23,8 @@ public record Invoice(
     long createdAt,
     long updatedAt,
     Long expiresAt,
-    Long completedAt) {
+    Long completedAt,
+    Long paidLateAt) {
 
   public Invoice {
     Objects.requireNonNull(invoiceId, "invoiceId is required");

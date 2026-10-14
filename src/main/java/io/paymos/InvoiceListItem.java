@@ -2,7 +2,12 @@ package io.paymos;
 
 import java.util.Objects;
 
-/** Compact invoice returned by the list endpoint. */
+/**
+ * Compact invoice returned by the list endpoint.
+ *
+ * <p>{@code paidLateAt}: invoice-late-payment additive late mark, Unix seconds; null while there is
+ * no mark — the server omits the field then.
+ */
 public record InvoiceListItem(
     String invoiceId,
     String projectId,
@@ -16,7 +21,8 @@ public record InvoiceListItem(
     String network,
     long createdAt,
     Long expiresAt,
-    Long completedAt) {
+    Long completedAt,
+    Long paidLateAt) {
   public InvoiceListItem {
     Objects.requireNonNull(invoiceId, "invoiceId is required");
     Objects.requireNonNull(projectId, "projectId is required");
