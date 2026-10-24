@@ -16,6 +16,11 @@ import javax.crypto.spec.SecretKeySpec;
 /** Verifies timestamped Paymos webhooks against the exact raw request body. */
 public final class WebhookVerifier {
   private static final ObjectMapper JSON = JsonSupport.MAPPER;
+  // Header parsing accepts any non-negative long, but an Instant cannot represent the whole long
+  // range. A `t=` value outside these bounds is rejected as a timestamp failure before
+  // Instant.ofEpochSecond would throw a DateTimeException out of the public API.
+  private static final long MIN_EPOCH_SECOND = Instant.MIN.getEpochSecond();
+  private static final long MAX_EPOCH_SECOND = Instant.MAX.getEpochSecond();
   private final byte[] secret;
   private final Duration tolerance;
 
@@ -49,7 +54,9 @@ public final class WebhookVerifier {
     Objects.requireNonNull(body, "Raw webhook body is required");
     Objects.requireNonNull(now, "Current time is required");
     Parsed parsed = parse(header);
-    if (Duration.between(Instant.ofEpochSecond(parsed.timestamp), now).abs().compareTo(tolerance)
+    if (parsed.timestamp() < MIN_EPOCH_SECOND || parsed.timestamp() > MAX_EPOCH_SECOND)
+      throw new WebhookTimestampException("Webhook timestamp is outside the representable range");
+    if (Duration.between(Instant.ofEpochSecond(parsed.timestamp()), now).abs().compareTo(tolerance)
         > 0) throw new WebhookTimestampException("Webhook timestamp is outside tolerance");
 
     byte[] expected = hmac((parsed.timestamp + ".").getBytes(StandardCharsets.US_ASCII), body);
