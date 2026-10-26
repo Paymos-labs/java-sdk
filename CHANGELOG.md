@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-10-26
+
+- fix(java-sdk): repair Maven Central bundle on Maven 3.10
+
+- **403 is no longer reported as an authentication failure.** `PaymosApiException.kind()` returns `"permission"` for 403; 401 keeps `"authentication"`.
+- **Base URL must use HTTPS.** Plain HTTP is accepted only against a loopback host, which is what a local integration test points at. The API secret signs every request, so a plaintext base URL put that credential on the wire.
+- **`new PaymosClient(apiKey, apiSecret, baseUrl)`** — pointing the SDK at a non-default origin no longer requires supplying a `Transport`, a `Clock` and the full retry/timeout set. The default transport is used.
+
 ## [1.3.1] - 2026-10-24
 
 - fix: remediate all 28 platform-wide audit findings (2026-10-23)
