@@ -97,6 +97,10 @@ public final class RequestSigner {
     return buildQuery(options == null ? Map.of() : options.query());
   }
 
+  static String buildQuery(RefundListOptions options) {
+    return buildQuery(options == null ? Map.of() : options.query());
+  }
+
   static String buildQuery(PaymentChannelListOptions options) {
     return buildQuery(options == null ? Map.of() : options.query());
   }

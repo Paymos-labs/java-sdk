@@ -56,6 +56,9 @@ public final class PaymosClient {
   /** Withdrawal operations. */
   public final Withdrawals withdrawals;
 
+  /** Invoice refund operations. */
+  public final Refunds refunds;
+
   /** Payment channel operations. */
   public final PaymentChannels paymentChannels;
 
@@ -148,6 +151,7 @@ public final class PaymosClient {
     this.timeout = timeout;
     invoices = new Invoices();
     withdrawals = new Withdrawals();
+    refunds = new Refunds();
     paymentChannels = new PaymentChannels();
     paymentChannelDeposits = new PaymentChannelDeposits();
     balances = new Balances();
@@ -416,6 +420,65 @@ public final class PaymosClient {
           "",
           null,
           type(Withdrawal.class));
+    }
+  }
+
+  /** Invoice refund resource operations. Requires a Payment key. */
+  public final class Refunds {
+    /**
+     * Creates a server-calculated refund, or returns the refund saved under the same key. Keep the
+     * same invoice, mode and external order ID when replaying an uncertain outcome.
+     */
+    public Refund create(String invoiceId, RefundMode mode, String externalOrderId) {
+      require(invoiceId, "Invoice ID");
+      Objects.requireNonNull(mode, "Refund mode is required");
+      require(externalOrderId, "External order ID");
+      return request(
+          "POST",
+          "/v1/refunds",
+          "",
+          Map.of("invoice_id", invoiceId, "mode", mode, "external_order_id", externalOrderId),
+          type(Refund.class));
+    }
+
+    /** Simulates a sandbox refund outcome. */
+    public Refund simulate(String id, String status) {
+      id(id);
+      return request(
+          "POST",
+          "/v1/sandbox/refunds/" + RequestSigner.encodePathSegment(id) + "/simulate",
+          "",
+          Map.of("status", Objects.requireNonNull(status)),
+          type(Refund.class));
+    }
+
+    /** Gets a refund by its withdrawal ID. */
+    public Refund get(String id) {
+      id(id);
+      return request(
+          "GET",
+          "/v1/refunds/" + RequestSigner.encodePathSegment(id),
+          "",
+          null,
+          type(Refund.class));
+    }
+
+    /** Lists one cursor page of refunds without filters. */
+    public Page<Refund> list() {
+      return list(RefundListOptions.empty());
+    }
+
+    /** Lists one cursor page of refunds. Period bounds use RFC 3339 timestamps. */
+    public Page<Refund> list(RefundListOptions options) {
+      JavaType pageType = JSON.getTypeFactory().constructParametricType(Page.class, Refund.class);
+      return request("GET", "/v1/refunds", RequestSigner.buildQuery(options), null, pageType);
+    }
+
+    /** Iterates refunds with a strict maximum-page bound. */
+    public Iterable<Refund> iterate(RefundListOptions options, int maxPages) {
+      RefundListOptions initial = options == null ? RefundListOptions.empty() : options;
+      return cursor(
+          this::list, initial, RefundListOptions::cursor, RefundListOptions::withCursor, maxPages);
     }
   }
 
