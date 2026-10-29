@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-29
+
+- fix(verification): preserve shared fixtures and support tracked symlinks
+- fix(sdk): preserve current refund contracts in TON conformance
+- fix(ton): return friendly addresses with existing webhook schema
+- feat(sdk-java): add refund create, get and list
+- feat: deliver local MCP setup and accumulated platform updates
+
+- **403 is no longer reported as an authentication failure.** `PaymosApiException.kind()` returns `"permission"` for 403; 401 keeps `"authentication"`.
+- **Base URL must use HTTPS.** Plain HTTP is accepted only against a loopback host, which is what a local integration test points at. The API secret signs every request, so a plaintext base URL put that credential on the wire.
+- **`new PaymosClient(apiKey, apiSecret, baseUrl)`** — pointing the SDK at a non-default origin no longer requires supplying a `Transport`, a `Clock` and the full retry/timeout set. The default transport is used.
+
 ## [1.3.2] - 2026-10-26
 
 - fix(java-sdk): repair Maven Central bundle on Maven 3.10

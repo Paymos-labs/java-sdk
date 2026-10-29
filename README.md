@@ -1,7 +1,7 @@
 # Paymos Java SDK
 
 Official Java 17+ client for the Paymos Merchant API. It provides the complete
-resource surface — invoices, withdrawals, balances and static per-customer wallets
+resource surface — invoices, refunds, withdrawals, balances and static per-customer wallets
 with their confirmed-deposit feed — HMAC signing, bounded cursor iteration, structured errors,
 safe retries, and raw-body webhook verification.
 
