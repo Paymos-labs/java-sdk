@@ -9,7 +9,6 @@ public record CreateInvoiceRequest(
     String currency,
     String externalOrderId,
     String network,
-    Boolean allowMultiplePayments,
     Integer customerFeePercent,
     String clientId) {
 
@@ -25,7 +24,6 @@ public record CreateInvoiceRequest(
     private String currency;
     private String externalOrderId;
     private String network;
-    private Boolean allowMultiplePayments;
     private Integer customerFeePercent;
     private String clientId;
 
@@ -54,11 +52,6 @@ public record CreateInvoiceRequest(
       return this;
     }
 
-    public Builder allowMultiplePayments(boolean value) {
-      allowMultiplePayments = value;
-      return this;
-    }
-
     public Builder customerFeePercent(int value) {
       customerFeePercent = value;
       return this;
@@ -78,14 +71,7 @@ public record CreateInvoiceRequest(
         throw new IllegalArgumentException("customerFeePercent must be between 0 and 100");
       }
       return new CreateInvoiceRequest(
-          projectId,
-          amount,
-          currency,
-          externalOrderId,
-          network,
-          allowMultiplePayments,
-          customerFeePercent,
-          clientId);
+          projectId, amount, currency, externalOrderId, network, customerFeePercent, clientId);
     }
 
     private static void require(String value, String name) {
