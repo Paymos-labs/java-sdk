@@ -13,16 +13,15 @@ import org.junit.jupiter.api.Test;
 
 final class TonWebhookConformanceTest {
   @Test
-  void signedTonWebhookRawAndFriendlyV1PreserveFields() throws Exception {
+  void signedTonWebhookVersionsPreserveFields() throws Exception {
     JsonNode contract =
         new ObjectMapper().readTree(Files.readString(Path.of("conformance/contract.json")));
     JsonNode fixtures = contract.path("vectors").path("ton_webhooks");
     JsonNode vectors = fixtures.path("vectors");
-    assertEquals(8, vectors.size());
+    assertEquals(16, vectors.size());
     WebhookVerifier verifier = new WebhookVerifier(fixtures.path("secret").asText());
     Instant now = Instant.ofEpochSecond(fixtures.path("now").asLong());
     for (JsonNode vector : vectors) {
-      assertEquals(1, vector.path("version").asInt());
       String body = vector.path("raw_body").asText();
       String header = vector.path("header").asText();
       WebhookEvent<JsonNode> event =

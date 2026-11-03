@@ -425,6 +425,20 @@ public final class PaymosClient {
 
   /** Invoice refund resource operations. Requires a Payment key. */
   public final class Refunds {
+    /** Sets a terminal sandbox refund status using the scoped Payment credential. */
+    public Refund simulate(String id, String status) {
+      id(id);
+      if (status == null || !Set.of("completed", "failed", "cancelled").contains(status)) {
+        throw new IllegalArgumentException("A terminal refund simulation status is required");
+      }
+      return request(
+          "POST",
+          "/v1/sandbox/refunds/" + RequestSigner.encodePathSegment(id) + "/simulate",
+          "",
+          Map.of("status", status),
+          type(Refund.class));
+    }
+
     /**
      * Creates a server-calculated refund, or returns the refund saved under the same key. Keep the
      * same invoice, mode and external order ID when replaying an uncertain outcome.
@@ -438,17 +452,6 @@ public final class PaymosClient {
           "/v1/refunds",
           "",
           Map.of("invoice_id", invoiceId, "mode", mode, "external_order_id", externalOrderId),
-          type(Refund.class));
-    }
-
-    /** Simulates a sandbox refund outcome. */
-    public Refund simulate(String id, String status) {
-      id(id);
-      return request(
-          "POST",
-          "/v1/sandbox/refunds/" + RequestSigner.encodePathSegment(id) + "/simulate",
-          "",
-          Map.of("status", Objects.requireNonNull(status)),
           type(Refund.class));
     }
 

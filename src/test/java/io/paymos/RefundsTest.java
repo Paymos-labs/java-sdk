@@ -29,60 +29,25 @@ final class RefundsTest {
   private static final ObjectMapper JSON = new ObjectMapper();
   private static final String INVOICE_ID = "inv_74BPZFhr9qy9Uz2fbRkdJX";
 
+  @Test
+  void scopedSimulatorSignsAllTerminalStatuses() throws Exception {
+    for (String status : List.of("completed", "failed", "cancelled")) {
+      Recorder recorder =
+          new Recorder(
+              response(
+                  200,
+                  refund("wdr_1", "full", "120").replace("\"created\"", "\"" + status + "\"")));
+      Refund result = client(recorder).refunds.simulate("wdr /?", status);
+      assertEquals(status, result.status().value());
+      assertEquals(List.of("POST /v1/sandbox/refunds/wdr%20%2F%3F/simulate"), recorder.targets);
+      assertEquals(status, JSON.readTree(recorder.bodies.get(0)).path("status").asText());
+    }
+  }
+
   private static JsonNode vectors() throws Exception {
     return JSON.readTree(Files.readString(Path.of("conformance/contract.json")))
         .path("vectors")
         .path("refunds");
-  }
-
-  @Test
-  void simulateTerminalStatusesPreservesSignedRequestAndCurrentRefundFields() throws Exception {
-    String address = "UQDKbjIcfM6ezt8KjKJJLshZJJSqX7XOA4ff-W72r5gqPuwA";
-    for (String status : List.of("completed", "failed", "cancelled")) {
-      com.fasterxml.jackson.databind.node.ObjectNode wire =
-          (com.fasterxml.jackson.databind.node.ObjectNode)
-              JSON.readTree(refund("wdr_1", "full", "20"));
-      wire.put("status", status);
-      wire.put("is_final", true);
-      wire.put("network", "TON");
-      wire.put("destination_address", address);
-      wire.put("first_sender", address);
-      wire.put("type", "refund");
-      wire.put("project_id", "prj_1");
-      Recorder recorder = new Recorder(response(200, wire.toString()));
-      Refund result = client(recorder).refunds.simulate("wdr/1 ?", status);
-      assertEquals(status, result.status().value());
-      assertEquals(address, result.destinationAddress());
-      assertEquals(address, result.firstSender());
-      assertEquals("refund", result.type());
-      assertEquals("prj_1", result.projectId());
-      assertEquals(List.of("POST /v1/sandbox/refunds/wdr%2F1%20%3F/simulate"), recorder.targets);
-      assertEquals(
-          JSON.readTree("{\"status\":\"" + status + "\"}"), JSON.readTree(recorder.bodies.get(0)));
-    }
-    Refund legacy =
-        new Refund(
-            "wdr_1",
-            INVOICE_ID,
-            RefundMode.FULL,
-            "key",
-            WithdrawalStatus.CREATED,
-            false,
-            true,
-            "20",
-            null,
-            "USDT",
-            "TON",
-            address,
-            address,
-            null,
-            null,
-            1700000000L,
-            null,
-            null,
-            null);
-    assertNull(legacy.type());
-    assertNull(legacy.projectId());
   }
 
   @Test
@@ -99,9 +64,9 @@ final class RefundsTest {
 
     assertEquals(created, replay);
     assertEquals("wdr_full", created.withdrawalId());
-    assertNull(created.type());
-    assertNull(created.projectId());
     assertEquals("120", created.amount());
+    assertEquals("refund", created.type());
+    assertEquals("prj_test", created.projectId());
     assertEquals(WithdrawalStatus.CREATED, created.status());
     assertFalse(created.isFinal());
     assertEquals(List.of("POST /v1/refunds", "POST /v1/refunds"), recorder.targets);
@@ -465,7 +430,7 @@ final class RefundsTest {
   }
 
   private static String refund(String id, String mode, String amount) {
-    return "{\"withdrawal_id\":\""
+    return "{\"type\":\"refund\",\"project_id\":\"prj_test\",\"withdrawal_id\":\""
         + id
         + "\",\"invoice_id\":\""
         + INVOICE_ID
