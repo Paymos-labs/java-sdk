@@ -7,6 +7,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
@@ -21,6 +22,10 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /** HMAC-authenticated client for all Paymos Merchant API resources. */
 public final class PaymosClient {
@@ -262,6 +267,11 @@ public final class PaymosClient {
 
   private static Transport defaultTransport() {
     HttpClient client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build();
+    return transport(client);
+  }
+
+  // Package-visible so the full-body deadline and cancellation can be tested without a server.
+  static Transport transport(HttpClient client) {
     return (method, uri, headers, body, timeout) -> {
       HttpRequest.Builder builder = HttpRequest.newBuilder(uri).timeout(timeout);
       headers.forEach(builder::header);
@@ -270,9 +280,23 @@ public final class PaymosClient {
           body.length == 0
               ? HttpRequest.BodyPublishers.noBody()
               : HttpRequest.BodyPublishers.ofByteArray(body));
-      HttpResponse<String> response =
-          client.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-      return new Response(response.statusCode(), response.body(), response.headers().map());
+      CompletableFuture<HttpResponse<String>> pending =
+          client.sendAsync(
+              builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+      try {
+        // HttpRequest.timeout may stop timing at headers. Bound the complete body as well.
+        HttpResponse<String> response = pending.get(timeout.toNanos(), TimeUnit.NANOSECONDS);
+        return new Response(response.statusCode(), response.body(), response.headers().map());
+      } catch (TimeoutException error) {
+        pending.cancel(true);
+        throw new HttpTimeoutException("Paymos HTTP response body deadline exceeded");
+      } catch (InterruptedException error) {
+        pending.cancel(true);
+        throw error;
+      } catch (ExecutionException error) {
+        if (error.getCause() instanceof Exception cause) throw cause;
+        throw error;
+      }
     };
   }
 

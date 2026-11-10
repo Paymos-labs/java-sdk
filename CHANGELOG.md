@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-11-10
+
+- feat(notifications): rewrite all 71 email and 52 Telegram RU templates, lifecycle series, and R01-R34 audit fixes
+- docs(sdk): backfill published mirror changelogs across SDKs and MCP
+
 ## [1.4.2] - 2026-11-03
 
 - fix(sdk): resolve preflight lint and conformance vector count for autorelease
