@@ -49,7 +49,7 @@ for (PaymentChannelNetwork rail : channel.networks()) {
 
 PaymentChannelDepositFeedPage feed = paymos.paymentChannelDeposits.read(
     PaymentChannelDepositFeedOptions.builder().cursor(savedCursor).limit(100).build());
-for (PaymentChannelDeposit deposit : feed.items()) credit(deposit);
+for (PaymentChannelDeposit deposit : feed.items()) creditDeposit(deposit); // one credit per deposit.id()
 saveCursor(feed.nextCursor());
 ```
 
@@ -87,9 +87,56 @@ WebhookEvent<PaymentChannelDeposit> event =
 PaymentChannelDeposit deposit = event.data();
 
 if (event.eventType().equals("payment_channel.deposit.confirmed") && deposit.isFinal()) {
-  credit(deposit.paymentChannelExternalId(), deposit.net()); // idempotent by event.eventId()
+  creditDeposit(deposit); // once per deposit.id(), shared with the feed
 }
 ```
+
+The feed and the deposit webhook report the same deposits, so both go through one
+`creditDeposit` keyed by the deposit's own `id()` (`pcd_...`). A sketch with JDBC
+(`credited_deposits.deposit_id` is the primary key; PostgreSQL syntax):
+
+```java
+void creditDeposit(PaymentChannelDeposit deposit) throws SQLException {
+  if (!deposit.isFinal() || !deposit.projectId().equals(MY_PROJECT_ID) || deposit.isTest() != MY_IS_TEST) {
+    return;
+  }
+  try (Connection db = dataSource.getConnection()) {
+    db.setAutoCommit(false);
+    try {
+      // The insert and the balance update commit together or not at all. A second
+      // delivery, a second endpoint's copy, or a re-read feed page inserts nothing.
+      int inserted;
+      try (PreparedStatement insert = db.prepareStatement(
+          "INSERT INTO credited_deposits (deposit_id, payer, amount) VALUES (?, ?, ?::numeric) "
+              + "ON CONFLICT (deposit_id) DO NOTHING")) {
+        insert.setString(1, deposit.id());
+        insert.setString(2, deposit.paymentChannelExternalId());
+        insert.setString(3, deposit.net());
+        inserted = insert.executeUpdate();
+      }
+      if (inserted == 1) {
+        try (PreparedStatement update = db.prepareStatement(
+            "UPDATE balances SET amount = amount + ?::numeric WHERE payer = ?")) {
+          update.setString(1, deposit.net());
+          update.setString(2, deposit.paymentChannelExternalId());
+          update.executeUpdate();
+        }
+      }
+      db.commit();
+    } catch (SQLException e) {
+      db.rollback();
+      throw e;
+    }
+  }
+}
+```
+
+`eventId()` identifies one delivery, not one payment. Paymos creates a separate event,
+with its own `eventId()`, for every webhook endpoint subscribed to the event, and every
+later event about the same invoice or deposit has its own `eventId()` too. Store
+`eventId()` to skip a redelivered request, but key money and fulfilment on the business
+identity: the invoice/order for invoice events, the deposit `id()` for deposit events.
+Write that key in the same database transaction as the order or balance change.
 
 `confirming` and `reorged` are advisory and may arrive out of order: a `confirming`
 can land after the `confirmed` for the same deposit, and a `reorged` can be
