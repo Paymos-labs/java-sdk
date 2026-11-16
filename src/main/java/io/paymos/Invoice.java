@@ -1,5 +1,6 @@
 package io.paymos;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.List;
 import java.util.Objects;
 
@@ -34,13 +35,41 @@ public record Invoice(
     Objects.requireNonNull(order, "order is required");
   }
 
+  /** One product line item attached to an invoice request or order. */
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  public record InvoiceProduct(
+      String title, String description, String imageUrl, int quantity, String unitAmount) {
+    public InvoiceProduct {
+      Objects.requireNonNull(title, "title is required");
+      Objects.requireNonNull(unitAmount, "unitAmount is required");
+    }
+
+    /** Creates a product item with only the required fields. */
+    public InvoiceProduct(String title, int quantity, String unitAmount) {
+      this(title, null, null, quantity, unitAmount);
+    }
+  }
+
   /** Merchant order represented by an invoice. */
+  @JsonInclude(JsonInclude.Include.NON_NULL)
   public record Order(
-      String externalId, String clientId, String amount, String currency, String network) {
+      String externalId,
+      String clientId,
+      String amount,
+      String currency,
+      String network,
+      List<InvoiceProduct> products) {
     public Order {
       Objects.requireNonNull(externalId, "externalId is required");
       Objects.requireNonNull(amount, "amount is required");
       Objects.requireNonNull(currency, "currency is required");
+      products = products == null ? null : List.copyOf(products);
+    }
+
+    /** Legacy constructor without products for backwards compatibility. */
+    public Order(
+        String externalId, String clientId, String amount, String currency, String network) {
+      this(externalId, clientId, amount, currency, network, null);
     }
   }
 

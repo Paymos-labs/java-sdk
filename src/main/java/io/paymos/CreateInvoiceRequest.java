@@ -1,8 +1,11 @@
 package io.paymos;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import java.util.List;
 import java.util.Objects;
 
 /** Parameters for creating an invoice. */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public record CreateInvoiceRequest(
     String projectId,
     String amount,
@@ -10,7 +13,24 @@ public record CreateInvoiceRequest(
     String externalOrderId,
     String network,
     Integer customerFeePercent,
-    String clientId) {
+    String clientId,
+    List<Invoice.InvoiceProduct> products) {
+
+  public CreateInvoiceRequest {
+    products = products == null ? null : List.copyOf(products);
+  }
+
+  /** Legacy constructor without products for backwards compatibility. */
+  public CreateInvoiceRequest(
+      String projectId,
+      String amount,
+      String currency,
+      String externalOrderId,
+      String network,
+      Integer customerFeePercent,
+      String clientId) {
+    this(projectId, amount, currency, externalOrderId, network, customerFeePercent, clientId, null);
+  }
 
   /** Starts a fluent request builder. */
   public static Builder builder() {
@@ -26,6 +46,7 @@ public record CreateInvoiceRequest(
     private String network;
     private Integer customerFeePercent;
     private String clientId;
+    private List<Invoice.InvoiceProduct> products;
 
     public Builder projectId(String value) {
       projectId = value;
@@ -62,6 +83,11 @@ public record CreateInvoiceRequest(
       return this;
     }
 
+    public Builder products(List<Invoice.InvoiceProduct> value) {
+      products = value;
+      return this;
+    }
+
     public CreateInvoiceRequest build() {
       require(projectId, "projectId");
       require(amount, "amount");
@@ -71,7 +97,14 @@ public record CreateInvoiceRequest(
         throw new IllegalArgumentException("customerFeePercent must be between 0 and 100");
       }
       return new CreateInvoiceRequest(
-          projectId, amount, currency, externalOrderId, network, customerFeePercent, clientId);
+          projectId,
+          amount,
+          currency,
+          externalOrderId,
+          network,
+          customerFeePercent,
+          clientId,
+          products);
     }
 
     private static void require(String value, String name) {

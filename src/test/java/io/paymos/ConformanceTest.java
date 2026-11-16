@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import com.fasterxml.jackson.databind.*;
 import java.io.*;
 import java.net.http.HttpHeaders;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.time.*;
 import java.util.*;
@@ -234,6 +235,148 @@ final class ConformanceTest {
             .invoices
             .iterate(InvoiceListOptions.builder().cursor("same").build(), 3);
     assertThrows(PaymosException.class, () -> items.iterator().hasNext());
+  }
+
+  @Test
+  void invoiceProductsWireAndLegacyConstructorCompatibility() throws Exception {
+    // Legacy 7-arg CreateInvoiceRequest and 5-arg Invoice.Order constructors stay compatible.
+    CreateInvoiceRequest legacyCtor =
+        new CreateInvoiceRequest("prj_1", "30.00", "USD", "order-legacy-1", null, null, null);
+    assertNull(legacyCtor.products());
+    Invoice.Order legacyOrder = new Invoice.Order("order_1", null, "30.00", "USD", null);
+    assertNull(legacyOrder.products());
+
+    // @JsonInclude(NON_NULL) omits null optional fields even on a plain snake-case ObjectMapper
+    // without a global NON_NULL default inclusion policy.
+    ObjectMapper snakeCaseOnly =
+        new ObjectMapper().setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
+    Invoice.InvoiceProduct minimalItem = new Invoice.InvoiceProduct("Priority Support", 1, "12.00");
+    JsonNode minimalNode = snakeCaseOnly.readTree(snakeCaseOnly.writeValueAsString(minimalItem));
+    assertFalse(minimalNode.has("description"));
+    assertFalse(minimalNode.has("image_url"));
+    assertEquals("Priority Support", minimalNode.path("title").asText());
+    assertEquals(1, minimalNode.path("quantity").asInt());
+    assertEquals("12.00", minimalNode.path("unit_amount").asText());
+    JsonNode legacyNode = snakeCaseOnly.readTree(snakeCaseOnly.writeValueAsString(legacyCtor));
+    assertFalse(legacyNode.has("products"));
+
+    List<Invoice.InvoiceProduct> mutableProducts = new ArrayList<>(List.of(minimalItem));
+    CreateInvoiceRequest copiedRequest =
+        CreateInvoiceRequest.builder()
+            .projectId("prj_1")
+            .amount("12.00")
+            .currency("USD")
+            .externalOrderId("order-copy")
+            .products(mutableProducts)
+            .build();
+    mutableProducts.clear();
+    assertEquals(1, copiedRequest.products().size());
+
+    JsonNode invoices = contract().path("vectors").path("invoices");
+    List<String> capturedTargets = new ArrayList<>();
+    List<String> capturedBodies = new ArrayList<>();
+    Deque<String> responses =
+        new ArrayDeque<>(
+            List.of(
+                invoices.path("create_single_product").path("response").toString(),
+                invoices.path("create_multi_product").path("response").toString(),
+                invoices.path("legacy_without_products").path("response").toString(),
+                invoices.path("null_products").path("response").toString(),
+                invoices
+                    .path("null_products")
+                    .path("response")
+                    .toString()
+                    .replace("\"currency\":\"USD\"", "\"currency\":\"USD\",\"products\":null")));
+    PaymosClient client =
+        configured(
+            (method, uri, headers, body, timeout) -> {
+              capturedTargets.add(method + " " + uri.getRawPath());
+              capturedBodies.add(new String(body, StandardCharsets.UTF_8));
+              return new PaymosClient.Response(200, responses.removeFirst(), Map.of());
+            },
+            0);
+
+    JsonNode single = invoices.path("create_single_product");
+    Invoice singleInvoice =
+        client.invoices.create(
+            CreateInvoiceRequest.builder()
+                .projectId("prj_1")
+                .amount("47.00")
+                .currency("USD")
+                .externalOrderId("order-product-single")
+                .products(
+                    List.of(
+                        new Invoice.InvoiceProduct(
+                            "Studio Pro",
+                            "One-month access",
+                            "https://shop.example/images/studio-pro.webp",
+                            2,
+                            "24.50")))
+                .build());
+    assertEquals("POST /v1/invoices", capturedTargets.get(0));
+    assertEquals(single.path("body"), JSON.readTree(capturedBodies.get(0)));
+    assertEquals("inv_prod_1", singleInvoice.invoiceId());
+    assertEquals("47.00", singleInvoice.order().amount());
+    assertEquals(1, singleInvoice.order().products().size());
+    Invoice.InvoiceProduct firstDecoded = singleInvoice.order().products().get(0);
+    assertEquals("Studio Pro", firstDecoded.title());
+    assertEquals("One-month access", firstDecoded.description());
+    assertEquals("https://shop.example/images/studio-pro.webp", firstDecoded.imageUrl());
+    assertEquals(2, firstDecoded.quantity());
+    assertEquals("24.50", firstDecoded.unitAmount());
+
+    JsonNode multi = invoices.path("create_multi_product");
+    Invoice multiInvoice =
+        client.invoices.create(
+            CreateInvoiceRequest.builder()
+                .projectId("prj_1")
+                .amount("59.00")
+                .currency("USD")
+                .externalOrderId("order-product-multi")
+                .products(
+                    List.of(
+                        new Invoice.InvoiceProduct(
+                            "Studio Pro",
+                            "One-month access",
+                            "https://shop.example/images/studio-pro.webp",
+                            2,
+                            "24.50"),
+                        new Invoice.InvoiceProduct("Priority Support", 1, "12.00")))
+                .build());
+    JsonNode multiBody = JSON.readTree(capturedBodies.get(1));
+    assertEquals(multi.path("body"), multiBody);
+    assertFalse(multiBody.path("products").get(1).has("description"));
+    assertFalse(multiBody.path("products").get(1).has("image_url"));
+    assertEquals("inv_prod_2", multiInvoice.invoiceId());
+    assertEquals("59.00", multiInvoice.order().amount());
+    assertEquals(2, multiInvoice.order().products().size());
+    Invoice.InvoiceProduct secondDecoded = multiInvoice.order().products().get(1);
+    assertEquals("Priority Support", secondDecoded.title());
+    assertNull(secondDecoded.description());
+    assertNull(secondDecoded.imageUrl());
+    assertEquals(1, secondDecoded.quantity());
+    assertEquals("12.00", secondDecoded.unitAmount());
+
+    JsonNode legacy = invoices.path("legacy_without_products");
+    Invoice legacyInvoice =
+        client.invoices.create(
+            CreateInvoiceRequest.builder()
+                .projectId("prj_1")
+                .amount("30.00")
+                .currency("USD")
+                .externalOrderId("order-legacy-1")
+                .build());
+    JsonNode legacyBody = JSON.readTree(capturedBodies.get(2));
+    assertEquals(legacy.path("body"), legacyBody);
+    assertFalse(legacyBody.has("products"));
+    assertEquals("30.00", legacyInvoice.order().amount());
+    assertNull(legacyInvoice.order().products());
+
+    Invoice nullInvoice = client.invoices.get("inv_null_1");
+    assertNull(nullInvoice.order().products());
+
+    Invoice explicitNullInvoice = client.invoices.get("inv_null_1");
+    assertNull(explicitNullInvoice.order().products());
   }
 
   private static PaymosClient configured(PaymosClient.Transport transport, int maxRetries) {

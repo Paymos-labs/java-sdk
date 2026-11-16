@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-11-16
+
+- docs(sdk,drupal): document invoice products[] and update OpenAPI snapshot
+- feat(sdk): support invoice products in Go, .NET, and Java SDKs (7.3)
+- feat(sdk): add products wire conformance fixtures (7.1)
+
 ## [1.5.1] - 2026-11-13
 
 - fix(plugins,publicweb): SDK webhook credit recipes, CMS recovery, redirects and CSP logs (audit 2026-11-13)
