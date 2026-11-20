@@ -37,8 +37,7 @@ public record Invoice(
 
   /** One product line item attached to an invoice request or order. */
   @JsonInclude(JsonInclude.Include.NON_NULL)
-  public record InvoiceProduct(
-      String title, String description, String imageUrl, int quantity, String unitAmount) {
+  public record InvoiceProduct(String title, String description, int quantity, String unitAmount) {
     public InvoiceProduct {
       Objects.requireNonNull(title, "title is required");
       Objects.requireNonNull(unitAmount, "unitAmount is required");
@@ -46,7 +45,7 @@ public record Invoice(
 
     /** Creates a product item with only the required fields. */
     public InvoiceProduct(String title, int quantity, String unitAmount) {
-      this(title, null, null, quantity, unitAmount);
+      this(title, null, quantity, unitAmount);
     }
   }
 

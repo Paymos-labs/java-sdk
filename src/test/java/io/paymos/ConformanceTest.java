@@ -306,22 +306,19 @@ final class ConformanceTest {
                 .externalOrderId("order-product-single")
                 .products(
                     List.of(
-                        new Invoice.InvoiceProduct(
-                            "Studio Pro",
-                            "One-month access",
-                            "https://shop.example/images/studio-pro.webp",
-                            2,
-                            "24.50")))
+                        new Invoice.InvoiceProduct("Studio Pro", "One-month access", 2, "24.50")))
                 .build());
     assertEquals("POST /v1/invoices", capturedTargets.get(0));
-    assertEquals(single.path("body"), JSON.readTree(capturedBodies.get(0)));
+    JsonNode singleBody = JSON.readTree(capturedBodies.get(0));
+    assertEquals(single.path("body"), singleBody);
+    assertEquals(4, singleBody.path("products").get(0).size());
+    assertFalse(singleBody.path("products").get(0).has("image_url"));
     assertEquals("inv_prod_1", singleInvoice.invoiceId());
     assertEquals("47.00", singleInvoice.order().amount());
     assertEquals(1, singleInvoice.order().products().size());
     Invoice.InvoiceProduct firstDecoded = singleInvoice.order().products().get(0);
     assertEquals("Studio Pro", firstDecoded.title());
     assertEquals("One-month access", firstDecoded.description());
-    assertEquals("https://shop.example/images/studio-pro.webp", firstDecoded.imageUrl());
     assertEquals(2, firstDecoded.quantity());
     assertEquals("24.50", firstDecoded.unitAmount());
 
@@ -335,12 +332,7 @@ final class ConformanceTest {
                 .externalOrderId("order-product-multi")
                 .products(
                     List.of(
-                        new Invoice.InvoiceProduct(
-                            "Studio Pro",
-                            "One-month access",
-                            "https://shop.example/images/studio-pro.webp",
-                            2,
-                            "24.50"),
+                        new Invoice.InvoiceProduct("Studio Pro", "One-month access", 2, "24.50"),
                         new Invoice.InvoiceProduct("Priority Support", 1, "12.00")))
                 .build());
     JsonNode multiBody = JSON.readTree(capturedBodies.get(1));
@@ -353,7 +345,6 @@ final class ConformanceTest {
     Invoice.InvoiceProduct secondDecoded = multiInvoice.order().products().get(1);
     assertEquals("Priority Support", secondDecoded.title());
     assertNull(secondDecoded.description());
-    assertNull(secondDecoded.imageUrl());
     assertEquals(1, secondDecoded.quantity());
     assertEquals("12.00", secondDecoded.unitAmount());
 

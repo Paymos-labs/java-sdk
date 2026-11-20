@@ -37,10 +37,10 @@ Invoice invoice = paymos.invoices.create(
 
 ### Product line items (`products[]`)
 
-Pass an optional `products` list (`1..50` `Invoice.InvoiceProduct` items) via `CreateInvoiceRequest.builder().products(...)` to show line items on checkout, or omit `products` for a compatible `amount-only` invoice. Each `Invoice.InvoiceProduct` requires `title` (<= 200 Unicode scalar values), positive int32 `quantity`, and decimal string `unitAmount` (in the invoice currency); `description` (plain text, <= 2000 scalars) and `imageUrl` (HTTPS URL, <= 2048 scalars) are optional nullable fields and are omitted on the wire when `null` (use the 3-argument constructor `new Invoice.InvoiceProduct(title, quantity, unitAmount)` for minimal items).
+Pass an optional `products` list (`1..50` `Invoice.InvoiceProduct` items) via `CreateInvoiceRequest.builder().products(...)` to show line items on checkout, or omit `products` for a compatible `amount-only` invoice. Each `Invoice.InvoiceProduct` requires `title` (<= 200 Unicode scalar values), positive int32 `quantity`, and decimal string `unitAmount` (in the invoice currency); `description` (plain text, <= 2000 scalars) is optional and nullable and is omitted on the wire when `null`. Use the 4-argument constructor `new Invoice.InvoiceProduct(title, description, quantity, unitAmount)` with a description, or the 3-argument constructor `new Invoice.InvoiceProduct(title, quantity, unitAmount)` for minimal items.
 
 ```java
-// 1-item invoice with optional description and imageUrl
+// 1-item invoice with optional description
 Invoice singleInvoice = paymos.invoices.create(
     CreateInvoiceRequest.builder()
         .projectId("prj_...")
@@ -51,12 +51,11 @@ Invoice singleInvoice = paymos.invoices.create(
             new Invoice.InvoiceProduct(
                 "Studio Pro",
                 "One-month access",
-                "https://shop.example/images/studio-pro.webp",
                 2,
                 "24.50")))
         .build());
 
-// Multi-item cart including a minimal 3-field item (no description / imageUrl)
+// Multi-item cart including a minimal 3-field item (no description)
 Invoice cartInvoice = paymos.invoices.create(
     CreateInvoiceRequest.builder()
         .projectId("prj_...")
@@ -67,7 +66,6 @@ Invoice cartInvoice = paymos.invoices.create(
             new Invoice.InvoiceProduct(
                 "Studio Pro",
                 "One-month access",
-                "https://shop.example/images/studio-pro.webp",
                 2,
                 "24.50"),
             new Invoice.InvoiceProduct("Priority Support", 1, "12.00")))
@@ -83,7 +81,7 @@ if (orderProducts != null) {
 
 - **Authoritative `amount`:** `amount` is the exact order total and is never recomputed from `sum(quantity * unitAmount)`.
 - **First-success replay:** the first successful `create` freezes `order().products()` on the invoice. Replaying the same `externalOrderId` with unchanged `(amount, currency, network)` returns HTTP 200 with the original `Invoice` and `order().products()`, even if `products` changed; changing `(amount, currency, network)` throws `PaymosApiException` with status `409` (`invoice_idempotency_conflict`). Legacy and `amount-only` invoices return `order().products() == null`.
-- **Image/product fallback & webhooks:** invoice creation stores `imageUrl` without fetching it server-side; if the buyer's browser fails to load an image or an item omits `description`/`imageUrl`, checkout hides only the missing media/description and keeps payment active. Signed invoice webhooks omit `products`.
+- **Webhooks:** signed invoice webhooks omit `products`.
 
 `iterate` provides bounded lazy cursor traversal. API failures throw
 `PaymosApiException`, retaining the response status, body, problem JSON, stable
